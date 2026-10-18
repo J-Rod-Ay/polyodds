@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Poly Odds remote</title>
+<meta name="theme-color" content="#0b0d13">
+<style>
+:root{--bg:#0b0d13;--card:#151924;--line:#232a3a;--text:#eef1f7;--dim:#8a93a6;--acc:#3d7eff;--live:#ff4d5e}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,system-ui,Roboto,sans-serif;padding:16px 16px 40px;max-width:560px;margin:auto}
+h1{font-size:13px;letter-spacing:.12em;color:var(--dim);margin:4px 0 12px;font-weight:600}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.now .t{font-weight:650;font-size:17px}.now .sub{color:var(--dim);font-size:13px;margin-top:2px}
+.odds{display:flex;gap:8px;margin-top:12px}
+.odd{flex:1;border-radius:10px;padding:8px 10px;background:#0f131c;border:1px solid var(--line)}
+.odd b{display:block;font-size:24px;font-variant-numeric:tabular-nums}.odd span{font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lbl{color:var(--dim);font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin:0 0 8px}
+button{font:inherit;color:var(--text);background:#1d2331;border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:44px;cursor:pointer}
+button.on{background:var(--acc);border-color:var(--acc)}
+button.wide{flex:1}
+.delay{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;min-width:70px;text-align:center}
+input[type=range]{width:100%;margin-top:10px;accent-color:var(--acc)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.game{display:flex;align-items:center;gap:10px;padding:11px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+.game:last-child{border-bottom:0}.game.cur{background:#1a2133;border-radius:8px}
+.game .lg{font-size:11px;color:var(--dim);width:38px;flex:none}
+.game .nm{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.game .px{font-variant-numeric:tabular-nums;color:var(--dim);font-size:13px;flex:none}
+.livedot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--live);margin-right:6px;vertical-align:1px}
+.when{font-size:11px;color:var(--dim)}
+input[type=search]{width:100%;font:inherit;color:var(--text);background:#0f131c;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:6px}
+.note{color:var(--dim);font-size:12px;margin-top:8px}
+.warn{color:#ffb44d}
+.toggle{display:flex;justify-content:space-between;align-items:center}
+</style></head><body>
+<h1>POLY ODDS · REMOTE</h1>
+
+<div class="card now" id="now"><div class="t">No overlay</div><div class="sub">Pick a game below</div></div>
+
+<div class="card">
+  <div class="lbl">Broadcast delay</div>
+  <div class="row"><button onclick="nudge(-5)">−5</button><button onclick="nudge(-1)">−1</button>
+  <div class="delay" id="dv">0s</div><button onclick="nudge(1)">+1</button><button onclick="nudge(5)">+5</button></div>
+  <input type="range" id="dr" min="0" max="120" step="1" oninput="dv.textContent=this.value+'s'" onchange="set({delay:this.value})">
+  <div class="note">Wait for a big play. Chart moves before the TV shows it? Add delay. After? Remove some. IPTV is often 20–60 s behind.</div>
+</div>
+
+<div class="card">
+  <div class="lbl">Position</div>
+  <div class="grid2" id="pos"><button data-p="2">↖ Top left</button><button data-p="3">Top right ↗</button><button data-p="0">↙ Bottom left</button><button data-p="1">Bottom right ↘</button></div>
+  <div class="lbl" style="margin-top:14px">Size</div>
+  <div class="row" id="size"><button class="wide" data-s="0">S</button><button class="wide" data-s="1">M</button><button class="wide" data-s="2">L</button></div>
+</div>
+
+<div class="card">
+  <div class="toggle"><div><div style="font-weight:600">Auto-detect game</div><div class="note" id="dnote" style="margin:2px 0 0"></div></div>
+  <button id="auto" onclick="set({auto:S.auto?0:1})">Off</button></div>
+</div>
+
+<div class="card">
+  <div class="row" style="justify-content:space-between;margin-bottom:8px"><div class="lbl" style="margin:0">Games</div><button onclick="hide()">Hide overlay</button></div>
+  <input type="search" id="q" placeholder="Search team or league" oninput="renderGames()">
+  <div id="games"><div class="note">Loading…</div></div>
+</div>
+
+<script>
+let S={}, G=[];
+const $=id=>document.getElementById(id);
+const pct=v=>v==null?'–':Math.round(v*100)+'%';
+async function api(p){const r=await fetch(p,{cache:'no-store'});return r.json()}
+async function set(o){S=await api('/api/set?'+new URLSearchParams(o));render()}
+function nudge(n){set({delay:Math.max(0,Math.min(300,(S.delay||0)+n))})}
+async function hide(){await api('/api/hide');poll()}
+async function pick(id){await api('/api/pick?id='+id);setTimeout(poll,400)}
+document.querySelectorAll('#pos button').forEach(b=>b.onclick=()=>set({pos:b.dataset.p}));
+document.querySelectorAll('#size button').forEach(b=>b.onclick=()=>set({size:b.dataset.s}));
+function render(){
+  $('dv').textContent=S.delay+'s'; if(document.activeElement!==$('dr')) $('dr').value=S.delay;
+  document.querySelectorAll('#pos button').forEach(b=>b.classList.toggle('on',+b.dataset.p===S.pos));
+  document.querySelectorAll('#size button').forEach(b=>b.classList.toggle('on',+b.dataset.s===S.size));
+  $('auto').textContent=S.auto?'On':'Off'; $('auto').classList.toggle('on',S.auto);
+  $('dnote').innerHTML=!S.detect?(S.fire?'Not available on Fire TV (Amazon blocks accessibility services). Pick games here instead.':'<span class="warn">Accessibility service is off. Run install.sh again or enable it in Settings → Accessibility.</span>'):(S.note||'Flip to a game channel and it switches automatically.');
+  const g=S.game, n=$('now');
+  if(!S.overlayOk){n.innerHTML='<div class="t warn">Overlay permission missing</div><div class="sub">adb shell appops set app.polyodds SYSTEM_ALERT_WINDOW allow</div>';return}
+  if(!g){n.innerHTML='<div class="t">No overlay</div><div class="sub">Pick a game below</div>';return}
+  n.innerHTML=`<div class="t">${esc(g.title)}</div><div class="sub">${g.league}${S.delay?` · ${S.delay}s behind live`:''}</div><div class="odds">`+
+    g.names.map((nm,i)=>`<div class="odd" style="border-color:${g.colors[i]}55"><span style="color:${g.colors[i]}">${esc(nm)}</span><b style="color:${g.colors[i]}">${pct(g.now[i])}</b></div>`).join('')+'</div>';
+  renderGames();
+}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function when(ms){const d=new Date(ms);return d.toLocaleDateString([], {weekday:'short'})+' '+d.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})}
+function renderGames(){
+  const q=$('q').value.toLowerCase(), cur=S.game&&S.game.id;
+  const list=G.filter(g=>!q||(g.title+' '+g.league).toLowerCase().includes(q));
+  $('games').innerHTML=list.length?list.map(g=>`<div class="game${g.id===cur?' cur':''}" onclick="pick('${g.id}')"><div class="lg">${g.league}</div><div class="nm">${g.live?'<span class="livedot"></span>':''}${esc(g.title)}${g.live?'':`<div class="when">${when(g.start)}</div>`}</div><div class="px">${g.px.map(pct).join(' · ')}</div></div>`).join(''):'<div class="note">No games.</div>';
+}
+async function poll(){try{S=await api('/api/state');render()}catch(e){}}
+async function games(){try{G=(await api('/api/games')).games;renderGames()}catch(e){}}
+poll();games();setInterval(poll,2000);setInterval(games,60000);
+</script></body></html>

@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="detect_desc">Reads channel and programme titles on screen (TiviMate\'s info banner, guide, etc.) to switch the odds overlay to the game you\'re watching. Nothing leaves the device.</string>
+</resources>
